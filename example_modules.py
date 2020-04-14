@@ -8,7 +8,7 @@ import time
 def new_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument('-i1', '--input1', type=str, default='material/LHB_240FPS/Lin_toss_1227 (1).avi', help='route of video1')
-    parser.add_argument('-i2', '--input2', type=str, default='material/LHB_240FPS/Lin_toss_1227 (2).avi', help='route of video2')
+    parser.add_argument('-i2', '--input2', type=str, default='material/LHB_240FPS/Tang_toss_0101.avi', help='route of video2')
     parser.add_argument('-w', '--waitKey', type=int, default=1, help='-w 0 for control of the clip, keep pressing any key to play')
     
     return parser
@@ -35,14 +35,9 @@ def read_clip_rgb(path):
     return clip_buf
 
 class MovingBallDetector(object):
-    def __init__(self, frame_1, frame_2, hist=8, thres=16, kr=7):
+    def __init__(self, frame, hist=8, thres=16, kr=7):
         self.WINDOW_NAME = "Example image"
-        self.roi_1 = self.cut_roi(frame_1)
-        self.roi_2 = self.cut_roi(frame_2)
-        self.frame_count_1 = 0
-        self.frame_count_2 = 0
-        self.flag_1 = 0
-        self.flag_2 = 0
+        self.roi = self.cut_roi(frame)
         self.H, self.W = self.roi_1.shape 
         self.fgbg = cv2.createBackgroundSubtractorMOG2(history=hist, varThreshold=thres, detectShadows=False) 
         self.kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(kr,kr))  
@@ -52,18 +47,14 @@ class MovingBallDetector(object):
     def cut_roi(self, img):
         return img[0:540,0:720]
 
-    def gen_differential_img(self, frame_1, frame_2, mog=False):
-        fgmask_1 = self.fgbg.apply(frame_1) 
-        fgmask_2 = self.fgbg.apply(frame_2) 
+    def gen_differential_img(self, frame, mog=False):
+        fgmask = self.fgbg.apply(frame)  
         if mog:
-            fgmask_mog2_1 = fgmask_1
-            fgmask_mog2_1 = cv2.morphologyEx(fgmask_mog2_1, cv2.MORPH_CLOSE, self.kernel) 
-            fgmask_mog2_1 = cv2.morphologyEx(fgmask_mog2_1, cv2.MORPH_OPEN, self.kernel) 
-            fgmask_mog2_2 = fgmask_2
-            fgmask_mog2_2 = cv2.morphologyEx(fgmask_mog2_2, cv2.MORPH_CLOSE, self.kernel) 
-            fgmask_mog2_2 = cv2.morphologyEx(fgmask_mog2_2, cv2.MORPH_OPEN, self.kernel)
-            return fgmask_mog2_1, fgmask_mog2_2
-        return fgmask_mog2_1, fgmask_mog2_2
+            fgmask_mog2 = fgmask
+            fgmask_mog2 = cv2.morphologyEx(fgmask_mog2, cv2.MORPH_CLOSE, self.kernel) 
+            fgmask_mog2 = cv2.morphologyEx(fgmask_mog2, cv2.MORPH_OPEN, self.kernel) 
+            return fgmask_mog2
+        return fgmask_mog2
     
     def set_blob_params(self):
         ball_r = 10 
@@ -86,35 +77,11 @@ class MovingBallDetector(object):
         params.minInertiaRatio = 0.6
         return params
 
-    def draw_blob_detected_ball_on_img(self, img_1, img_2):
-        inv_img_1 = cv2.bitwise_not(img_1)
-        inv_img_2 = cv2.bitwise_not(img_2)
-        keypoints_1 = self.blob_detector.detect(inv_img_1)
-        keypoints_2 = self.blob_detector.detect(inv_img_2)
-        img_1 = cv2.drawKeypoints(img_1, keypoints_1, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        img_2 = cv2.drawKeypoints(img_2, keypoints_2, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        
-        if self.flag_1 == 0:
-            if len(keypoints_1) != 0:
-                self.frame_count_1 += 1 
-            elif self.frame_count_1 > 10:
-                self.flag_1 += 1
-            else:
-                self.frame_count_1 = 0
-        elif self.flag_2 == 0:
-            self.flag_1 += 1
-            
-        if self.flag_2 == 0:
-            if len(keypoints_2) != 0:
-                self.frame_count_2 += 1 
-            elif self.frame_count_2 > 10:
-                self.flag_2 += 1
-            else:
-                self.frame_count_2 = 0
-        elif self.flag_1 == 0:
-            self.flag_2 += 1
-        
-        delta = self.flag_1-self.flag_2
+    def draw_blob_detected_ball_on_img(self, img):
+        inv_img = cv2.bitwise_not(img)
+        keypoints = self.blob_detector.detect(inv_img)
+        img = cv2.drawKeypoints(img, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+
         #for kp in keypoints_1:
         #    print("kp_1.size="+str(kp.size))
         #    print("kp_1.xy = (%d, %d)\n"%(kp.pt[0], kp.pt[1]))
@@ -129,24 +96,34 @@ class MovingBallDetector(object):
         #    cv2.imshow(self.WINDOW_NAME, img)
         #    cv2.waitKey(0)
                     
-        return img_1, img_2, delta
+        return img
 
-    def demo_video(self, clip_1, clip_2):
-        b1, b2 = [], []
-        for i in range(len(clip_1)):
-            blob = cv2.vconcat([clip_1[i], clip_2[i]])
-            fgmask_1, fgmask_2 = self.gen_differential_img(clip_1[i], clip_2[i], mog=True)
-            blob_1, blob_2, delta = self.draw_blob_detected_ball_on_img(fgmask_1, fgmask_2)
-            b1.append(blob_1)
-            b2.append(blob_2)
-            #blob = cv2.hconcat([blob_1, blob_2])
-            #cv2.imshow(self.WINDOW_NAME, blob)
-            #cv2.waitKey(1)
-            
-        return b1, b2, delta
+    def demo_video(self, clip):
+        for i in range(len(clip)):
+            fgmask = self.gen_differential_img(clip, mog=True)
+            blob = self.draw_blob_detected_ball_on_img(fgmask)
+            cv2.imshow(self.WINDOW_NAME, blob)
+            cv2.waitKey(1)
+    
+    def find_batting_time(self, clip)
+        consecutive_keypoint_frame_count = 0
+        frame_of_batting_time = 0
         
+        for i in range(len(clip)):
+            frame_of_batting_time += 1
+            inv_img = cv2.bitwise_not(clip[i])
+            keypoints = self.blob_detector.detect(inv_img)
+            img = cv2.drawKeypoints(img, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+            
+            if len(keypoints) != 0:
+                consecutive_keypoint_frame_count += 1 
+            elif consecutive_keypoint_frame_count > 10:
+                return
+            else:
+                consecutive_keypoint_frame_count = 0
+                
 def run_param_for_bgs():
-    parser = new_parser()
+    parser = new_parser() 
     arg = parser.parse_args()
     WINDOW_NAME = "Example image"
     clip_1 = read_clip_mono(arg.input1)
@@ -157,9 +134,12 @@ def run_param_for_bgs():
         for hist in [32, 64]:
             t0=time.time()
             print("Sychronizing with hist = {0}, thres = {1}...".format(hist, thres))
-            ball_detector = MovingBallDetector(clip_1[0], clip_2[0], hist=hist, thres=thres, kr=3)
-            b1, b2, delta = ball_detector.demo_video(clip_1[0:frame_total], clip_2[0:frame_total])
-    
+            ball_detector_1 = MovingBallDetector(clip_1[0], hist=hist, thres=thres, kr=3)
+            ball_detector_2 = MovingBallDetector(clip_2[0], hist=hist, thres=thres, kr=3)
+            batting_time_1 = ball_detector_1.find_batting_time(clip_1[0])
+            batting_time_2 = ball_detector_2.find_batting_time(clip_2[0])
+            delta = batting_time_1 - batting_time_2
+            print(delta)
             if delta > 0:
                 for i in range(len(clip_1)-delta):
                     blob = cv2.hconcat([b1[i], b2[i+delta]])
