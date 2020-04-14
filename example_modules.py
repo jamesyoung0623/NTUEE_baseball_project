@@ -1,9 +1,8 @@
 import argparse
 import numpy  as np
-import math
 import cv2
-import sys
 import time
+import math
 
 def new_parser():
     parser = argparse.ArgumentParser()
@@ -94,6 +93,7 @@ class MovingBallDetector(object):
             cv2.waitKey(1)
     
     def find_batting_frame(self, clip):
+        #observe the long consecutive existing keypoint before batting frame
         consecutive_keypoint_frame_count = 0
         
         for i in range(len(clip)):
@@ -104,7 +104,7 @@ class MovingBallDetector(object):
             
             if len(keypoints) != 0:
                 consecutive_keypoint_frame_count += 1 
-            elif consecutive_keypoint_frame_count > 10:
+            elif consecutive_keypoint_frame_count > 10: #consider 10 long enough
                 return i
             else:
                 consecutive_keypoint_frame_count = 0
