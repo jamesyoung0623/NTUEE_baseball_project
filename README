@@ -1,3 +1,0 @@
--i1, --input1, route of video1, default='Lin_toss_1227 (1)'
--i2, --input2, route of video2, default='Lin_toss_1227 (2)'
--w, -waitKey, -w 0 for control of the clip, keep pressing any key to play, default=1
