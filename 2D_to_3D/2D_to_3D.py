@@ -20,14 +20,6 @@ cam_2_fi = 11.6*math.pi/180
 #v = 90~100 in camera 1 is z = 0
 #u = 340~360 in camera 1 is y = 0
 #u = 480~500 in camera 1 is y = 1
-cap = cv2.VideoCapture('1635_43_cam_2.avi')
-ret, frame = cap.read()
-cv2.imshow('test', frame)
-plt.imshow(frame)
-plt.show()
-cap = cv2.VideoCapture('1635_43_cam_0.avi')
-ret, frame = cap.read()
-plt.imshow(frame)
 
 def calculate_x(cam_1_coord, cam_2_coord):
     x = (cam_2_coord[0]-310)/190
